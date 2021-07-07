@@ -1,0 +1,236 @@
+#include <stdio.h>
+#include <math.h>
+#include "complex.h"
+#include "gsl_rng.h" 
+#define N 200
+#define P 1000
+#define PI 3.1415926535
+#define lambda 0.3
+
+gsl_rng *tau;
+
+int main(){
+	//Definimos las variables necesarias
+	int j,n,i,l;
+	double s,k,c,modulo,fase,vabs,prob,norma,m,mt,PD,PIz,al,sum, K, Kbueno, sumatoria;
+	fcomplex V[N],F[N],Fi[N],X[N],a[N-1],b[N-1],y[N-1],A,D[N-1],B[N-1],aux3,aux,aux2;
+	FILE *f1;
+
+	//Numeros aleaotrios
+	extern gsl_rng *tau; 
+    int semilla=135254;
+
+	tau=gsl_rng_alloc(gsl_rng_taus); 
+    gsl_rng_set(tau,semilla); 
+	f1=fopen("Los K", "w");
+
+	//Introducimos los valores iniciales
+	n=N/4.0;
+	k=2*PI*(1.0*n)/N;
+	s=1.0/(4.0*k*k);
+
+	//Potencial
+	for(j=0;j<N;j++){
+		if((j<(2*N/5.0))||(j>(3*N/5.0+1))){
+			V[j]=Complex(0.0,0.0);
+		}else{
+			V[j]=Complex(lambda*k*k,0.0);	//En verdad el potencial es real
+		}		
+	}
+
+	//Inicializamos los parámetros
+	A.r=1.0;
+	A.i=0.0;
+	aux3.r=-2.0;
+	aux3.i=2.0/s;
+	j=0;
+
+	for(j=0;j<N-1;j++){
+		D[j]=Csub(aux3,V[j]);
+	}
+
+	//Cálculo de las alfas	
+	a[N-2].r=0.0;
+	a[N-2].i=0.0;
+	
+	for(l=N-2;l>=0;l--){
+		aux=Cmul(A,a[l]);
+		aux2=Cadd(D[l],aux);
+		y[l]=Cdiv(A,aux2);
+		a[l-1]=RCmul(-1.0,y[l]);
+	}
+
+	j=1;
+
+	F[N-1].r=0.0;
+	F[N-1].i=0.0;
+	F[0].r=0.0;
+	F[0].i=0.0;
+
+	j=0;
+	n=0;
+	prob=0;
+	aux.r=0.0;
+	aux.i=4.0/s;
+	aux2.r=0.0;
+	aux2.i=0.0;
+	aux3.r=0.0;
+	aux3.i=0.0;
+	prob=0;
+
+	for(j=1;j<N-1;j++){
+		modulo=exp(-8.0*(4*j-N)*(4*j-N)/(N*N));
+		fase=k*j;
+		F[j]=Cgauss(fase,modulo);
+	}
+	
+	for(j=0;j<N;j++){
+		vabs=Cabs(F[j]);
+		prob=prob+vabs*vabs;
+	}
+
+	j=0;//Norma
+	for(j=0;j<N;j++){
+		F[j].r=F[j].r/(sqrt(prob));
+		F[j].i=F[j].i/(sqrt(prob));
+	}
+
+	j=0;
+	for (j=0;j<N;j++)
+		Fi[j]=F[j];
+
+	mt=0;//número de veces que encontramos la onda con el detector derecho
+	m=0;//número de veces que medimos
+	l=0;//Contador hasta 1000
+	sumatoria=0.0;
+	
+	for(l=0;l<1000;l++){//iniciamos el primer bucle, iteraciones necesarias para la buena estadistica
+		j=0;
+		for (j=0;j<N;j++)
+			F[j]=Fi[j];
+		
+		for(n=0;n<P;n++)//Bucle de pasos
+		{
+			j=0;
+		
+			if (n%200==0 && n!=0) //Cuantos pasos queremos dejar evolucionar el sistema
+		
+			{
+				//Calculamos la probabilidad de encontrar la onda con el detector derecho
+				PD=0;
+				for(j=4*N/5.0;j<N;j++)
+				{
+					vabs=Cabs(F[j]);
+					PD=PD+vabs*vabs;
+				}
+				al=gsl_rng_uniform_int(tau,2); //genero un número aleatorio entre 0 y 1
+				if (al<PD)
+					{
+						mt=mt+1; //está en el detector derecho
+						n=P; //nos vamos del bucle
+					}
+				else
+					{
+						//hacemos 0 esta parte de la función de onda
+						j=0;
+						for(j=4*N/5.0;j<N;j++)
+							{
+								F[j].r=0.0;
+								F[j].i=0.0;
+							}
+						j=0;
+						sum=0;
+						for(j=0;j<N;j++)
+							{
+								vabs=Cabs(F[j]);
+								sum=sum+vabs*vabs;
+							}
+						j=0;
+						for(j=0;j<N;j++)
+							{
+								//Norma
+								F[j].r=F[j].r/(sqrt(sum));
+								F[j].i=F[j].i/(sqrt(sum));
+							}
+						//Calculamos la probabilidad de encontrar la onda en el lado izquierdo
+						j=0;
+						for(j=0;j<N/5.0;j++)
+							{
+								vabs=Cabs(F[j]);
+								PIz=PIz+vabs*vabs;	
+							}
+						//Generamos otro número aleatorio entre 0 y 1
+						al=gsl_rng_uniform_int(tau,2);
+						if (al<PIz)
+							n=P; //Nos vamos del bucle
+						else
+							{
+								//Hacemos 0 la parte del detector izquierdo y volvemos a calcular la norma
+								j=0;
+								for(j=0;j<N/5.0;j++)
+								{
+									F[j].r=0.0;
+									F[j].i=0.0;
+								}
+								j=0;
+								sum=0;
+								for(j=0;j<N;j++)
+									{
+										vabs=Cabs(F[j]);
+										sum=sum+vabs*vabs;
+									}
+								j=0;
+								for(j=0;j<N;j++)
+									{//Norma
+										F[j].r=F[j].r/(sqrt(sum));
+										F[j].i=F[j].i/(sqrt(sum));
+									}
+								
+							}
+						
+					}//Cerramos el else	
+			}//Cerramos el bucle de los pasos
+			//b y B tienen una dimensión menos que la función de onda
+			//Cálculo de las betas
+			for(i=N-2;i>=2;i--)
+			{
+				b[i]=Cmul(aux,F[i]);
+				aux2=Csub(b[i],B[i]);
+				B[i-1]=Cmul(y[i],aux2);
+			}
+			B[0].r=0.0;
+			B[0].i=0.0;
+			j=0;
+		
+			X[0].r=0.0;
+			X[0].i=0.0;
+			for(j=0;j<N-1;j++)
+			{
+				aux3=Cmul(a[j],X[j]);
+				X[j+1]=Cadd(aux3,B[j]);
+			}
+			j=0;
+			for(j=0;j<N;j++)
+			{
+				F[j]=Csub(X[j],F[j]);
+			}
+	}
+		K=mt/m;//coeficiente 
+		m=m+1;//mediciones al final seran 1000
+		fprintf(f1, "%lf\n", K);
+		if(l!=0){//El primero sale mal
+			sumatoria=sumatoria+K;
+		}	
+	}
+
+	//Escribimos los resultados
+	Kbueno=sumatoria/1000;
+	fclose(f1);
+	printf("%lf\n",m);	
+	printf("%lf\n",mt);
+	printf("%lf\n",sumatoria);
+	printf("%lf\n",Kbueno);
+
+
+	return 0;
+}
